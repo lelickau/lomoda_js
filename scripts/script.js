@@ -1,13 +1,12 @@
 const headerCityButton = document.querySelector('.header__city-button');
 let hash = location.hash.substring(1);
-if (hash === 'men') document.querySelector('.goods__title').textContent = 'Мужчинам';
-if (hash === 'women') document.querySelector('.goods__title').textContent = 'Женщинам';
-if (hash === 'kids') document.querySelector('.goods__title').textContent = 'Детям';
-headerCityButton.textContent = localStorage.getItem('lomoda-location') || 'Ваш город?';
+
 
 // scroll block
 const disableScroll = () => {
+    if (document.disableScroll) return;
     const widthScroll = window.innerWidth - document.body.offsetWidth;
+    document.disableScroll = true;
     document.body.dbScrollY = window.scrollY;
     document.body.style.cssText = `
         possition: fixed;
@@ -17,22 +16,31 @@ const disableScroll = () => {
         height: 100vh;
         overflow: hidden;
         padding-right: ${widthScroll}px;
-        
     `;
 }
 
-const rememberCity = (e) => {
-    const city = prompt('Укадите ваш город');
-    headerCityButton.textContent = city;
-    localStorage.setItem('lomoda-location', city);
-}
-
 const enebleScroll = () => {
+    document.disableScroll = false;
     document.body.style.cssText = '';
     window.scroll({
         top: document.body.dbScrollY,
     })
 }
+
+const updateLocation = () => {
+    const isLocation = localStorage.getItem('lomoda-location');
+    headerCityButton.textContent = isLocation && isLocation !== 'null' ? isLocation : 'Ваш город?';
+}
+
+const rememberCity = (e) => {
+    const city = prompt('Укадите ваш город').trim();
+    if (city !== null) {
+        localStorage.setItem('lomoda-location', city);
+    }
+
+    updateLocation();
+}
+updateLocation();
 
 //modal
 const subheaderCart = document.querySelector('.subheader__cart');
@@ -71,15 +79,15 @@ const getData = async () => {
     if(data.ok) {
         return data.json()
     } else {
-        throw new Error(`Данные не получены, ошибка ${data.status}, ${data.statusText}`)
+        throw new Error(`Данные не получены, ошибка ${data.status}, ${data.statusText}`);
     }
 }
 
-const getGoods = (cb, hash) => {
+const getGoods = (cb, prop, hash) => {
     getData()
     .then(data => {
         if(hash) {
-            cb(data.filter(item => item.category === hash))
+            cb(data.filter(item => item[prop] === hash))
         } else {
             cb(data)
         }
@@ -90,11 +98,19 @@ const getGoods = (cb, hash) => {
     })
 }
 
+//goods
 try {
     const goodsList = document.querySelector('.goods__list');
 
     if (!goodsList) {
         throw `not a good page`;
+    }
+
+    const goodsTitle =  document.querySelector('.goods__title');
+
+    const changeTitle = () => {
+        const title = document.querySelector(`[href*='${location.hash}']`);
+        goodsTitle.textContent = title.textContent;
     }
 
     const createCard = ({id, photo, name, cost, brand, sizes}) => {
@@ -114,7 +130,7 @@ try {
                     <a class="good__link" href="card-good.html#id${id}">Подробнее</a>
                 </div>
             </article>
-        `
+        `;
         return li;
     }
 
@@ -130,16 +146,81 @@ try {
 
     window.addEventListener('hashchange', (e) => {
         hash = location.hash.substring(1);
-        if (hash === 'men') document.querySelector('.goods__title').textContent = 'Мужчинам';
-        if (hash === 'women') document.querySelector('.goods__title').textContent = 'Женщинам';
-        if (hash === 'kids') document.querySelector('.goods__title').textContent = 'Детям';
+        changeTitle();
+        getGoods(renderGoodsList, 'category', hash);
+    });
 
-        getGoods(renderGoodsList, hash);
-    })
+    changeTitle();
 
-    getGoods(renderGoodsList, hash);
+    getGoods(renderGoodsList, 'category', hash);
+
 } catch (error) {
     console.log(error)
+}
+
+//product
+try {
+    if(!document.querySelector('.card-good')) {
+        throw 'not a card-good';
+    }
+
+    const cardGoodImage = document.querySelector('.card-good__image');
+    const cardGoodBrand = document.querySelector('.card-good__brand');
+    const cardGoodTitle = document.querySelector('.card-good__title');
+    const cardGoodColor = document.querySelector('.card-good__color');
+    const cardGoodPrice = document.querySelector('.card-good__price');
+    const cardGoodSelectWrapper = document.querySelectorAll('.card-good__select__wrapper');
+    const cardGoodColorList = document.querySelector('.card-good__color-list');
+    const cardGoodSizes = document.querySelector('.card-good__sizes');
+    const cardGoodSizesList = document.querySelector('.card-good__sizes-list');
+    const cardGoodBuy = document.querySelector('.card-good__buy');
+
+    const generateList = (items) => items.reduce((html, item, i) => 
+    html + `<li class="card-good__select-item data-id='${i}">${item}</li>`
+    , '')
+
+    const renderGoodCard = ([{color, photo, name, cost, brand, sizes}]) => {
+        cardGoodImage.src = `goods-image/${photo}`;
+        cardGoodImage.alt = `${name} ${brand}`;
+        cardGoodBrand.textContent = brand;
+        cardGoodTitle.textContent = name;
+        cardGoodPrice.textContent = `${cost} ₽`;
+        if (color) {
+            cardGoodColor.textContent = color[0];
+            cardGoodColor.dataset.id = 0;
+            cardGoodColorList.innerHTML = generateList(color);
+        } else {
+            cardGoodColor.style.display = 'none';
+        }
+        if (sizes) {
+            cardGoodSizes.textContent = sizes[0];
+            cardGoodSizes.dataset.id = 0;
+            cardGoodSizesList.innerHTML = generateList(sizes);
+        } else {
+            cardGoodSizes.style.display = 'none';
+        }
+    }
+
+    cardGoodSelectWrapper.forEach(item => {
+        item.addEventListener('click', e => {
+            const target = e.target;
+            if (target.closest('.card-good__select')) {
+                target.classList.toggle('card-good__select__open');
+            }
+            if (target.closest('.card-good__select-item')) {
+                const cardGoodSelect = item.querySelector('.card-good__select');
+                cardGoodSelect.textContent = target.textContent;
+                cardGoodSelect.dataset.id = target.dataset.id;
+                cardGoodSelect.classList.remove('card-good__select__open');
+            }
+        })
+    });
+    
+
+    getGoods(renderGoodCard, 'id', hash.substring(2));
+
+} catch (error) {
+    console.log(error);
 }
 
 
